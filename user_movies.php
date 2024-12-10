@@ -1,6 +1,6 @@
 <?php
 session_start();
-if (!isset($_SESSION['username']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['username']) || $_SESSION['role'] === 'admin') {
     header("Location: index.php");
     exit();
 }
@@ -17,6 +17,7 @@ if ($conn->connect_error) {
 
 $error = "";
 $success = "";
+$current_user = $_SESSION['username'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_movie'])) {
     $title = $_POST['title'];
@@ -41,9 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_movie'])) {
     }
 
     if (empty($error)) {
-        $sql = "INSERT INTO Movies (title, release_date, duration, rating, image_url, desc_film, creator) VALUES (?, ?, ?, ?, ?, ?, 'admin')";
+        $sql = "INSERT INTO Movies (title, release_date, duration, rating, image_url, desc_film, creator) VALUES (?, ?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssidsis", $title, $release_date, $duration, $rating, $imagePath, $desc_film);
+        $stmt->bind_param("ssidsis", $title, $release_date, $duration, $rating, $imagePath, $desc_film, $current_user);
         if ($stmt->execute()) {
             $success = "Film ajouté avec succès !";
         } else {
@@ -60,9 +61,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_movie'])) {
     $rating = $_POST['rating'];
     $desc_film = $_POST['desc_film'];
 
-    $sql = "SELECT image_url FROM Movies WHERE id = ?";
+    $sql = "SELECT image_url FROM Movies WHERE id = ? AND creator = ?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $movie_id);
+    $stmt->bind_param("is", $movie_id, $current_user);
     $stmt->execute();
     $result = $stmt->get_result();
     $movie = $result->fetch_assoc();
@@ -88,9 +89,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_movie'])) {
     }
 
     if (empty($error)) {
-        $sql = "UPDATE Movies SET title = ?, release_date = ?, duration = ?, rating = ?, image_url = ?, desc_film = ? WHERE id = ?";
+        $sql = "UPDATE Movies SET title = ?, release_date = ?, duration = ?, rating = ?, image_url = ?, desc_film = ? WHERE id = ? AND creator = ?";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssidsii", $title, $release_date, $duration, $rating, $imagePath, $desc_film, $movie_id);
+        $stmt->bind_param("ssidsisi", $title, $release_date, $duration, $rating, $imagePath, $desc_film, $movie_id, $current_user);
         if ($stmt->execute()) {
             $success = "Film modifié avec succès !";
         } else {
@@ -102,9 +103,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_movie'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_movie'])) {
     $movie_id = $_POST['movie_id'];
 
-    $sql = "SELECT image_url FROM Movies WHERE id = ?";
+    $sql = "SELECT image_url FROM Movies WHERE id = ? AND creator = ?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("i", $movie_id);
+    $stmt->bind_param("is", $movie_id, $current_user);
     $stmt->execute();
     $result = $stmt->get_result();
     $movie = $result->fetch_assoc();
@@ -115,21 +116,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_movie'])) {
             unlink($imagePath);
         }
 
-        $sql = "DELETE FROM Movies WHERE id = ?";
+        $sql = "DELETE FROM Movies WHERE id = ? AND creator = ?";
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("i", $movie_id);
+        $stmt->bind_param("is", $movie_id, $current_user);
         if ($stmt->execute()) {
             $success = "Film supprimé avec succès !";
         } else {
             $error = "Une erreur est survenue. Veuillez réessayer.";
         }
     } else {
-        $error = "Impossible de supprimer ce film.";
+        $error = "Vous n'avez pas la permission de supprimer ce film.";
     }
 }
 
-$sql = "SELECT * FROM Movies";
-$result = $conn->query($sql);
+$sql = "SELECT * FROM Movies WHERE creator = ?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("s", $current_user);
+$stmt->execute();
+$result = $stmt->get_result();
 
 $conn->close();
 ?>
@@ -139,8 +143,8 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modifier les films</title>
-    <link rel="stylesheet" href="style-admin-edit.css">
+    <title>Mes films</title>
+    <link rel="stylesheet" href="style-user-movies.css">
 </head>
 <body>
     <nav class="navbar">
@@ -149,12 +153,12 @@ $conn->close();
         </ul>
     </nav>
     <div class="movie-container">
-        <h1>Modifier les films</h1>
+        <h1>Mes films</h1>
         <?php if ($error): ?>
-            <p class="error"><?php echo $error; ?></p>
+            <p style="color: red;"><?php echo $error; ?></p>
         <?php endif; ?>
         <?php if ($success): ?>
-            <p class="success"><?php echo $success; ?></p>
+            <p style="color: green;"><?php echo $success; ?></p>
         <?php endif; ?>
 
         <form method="POST" enctype="multipart/form-data">
@@ -169,23 +173,22 @@ $conn->close();
         </form>
 
         <?php if ($result->num_rows > 0): ?>
-            <h2>Liste des films</h2>
+            <h2>Mes films ajoutés</h2>
             <?php while ($row = $result->fetch_assoc()): ?>
-                <form method="POST" enctype="multipart/form-data" class="movie-form">
+                <form method="POST" enctype="multipart/form-data" style="margin-bottom: 1rem;">
                     <input type="hidden" name="movie_id" value="<?php echo $row['id']; ?>">
                     <input type="text" name="title" value="<?php echo htmlspecialchars($row['title']); ?>" required>
                     <input type="date" name="release_date" value="<?php echo $row['release_date']; ?>" required>
                     <input type="number" name="duration" value="<?php echo $row['duration']; ?>" required>
                     <input type="number" step="0.1" name="rating" value="<?php echo $row['rating']; ?>" required>
                     <textarea name="desc_film" required><?php echo htmlspecialchars($row['desc_film']); ?></textarea>
-                    <p class="creator">Créateur : <?php echo htmlspecialchars($row['creator']); ?></p>
                     <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp,.gif">
                     <button type="submit" name="edit_movie">Modifier</button>
-                    <button type="submit" name="delete_movie" class="delete-button">Supprimer</button>
+                    <button type="submit" name="delete_movie">Supprimer</button>
                 </form>
             <?php endwhile; ?>
         <?php else: ?>
-            <p>Aucun film trouvé.</p>
+            <p>Vous n'avez ajouté aucun film.</p>
         <?php endif; ?>
     </div>
 </body>

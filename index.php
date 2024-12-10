@@ -48,10 +48,12 @@ function getImagePath($imagePath) {
             <?php if (isset($_SESSION['username']) && isset($_SESSION['role'])): ?>
                 <?php if ($_SESSION['role'] === 'admin'): ?>
                     <li><a href="admin_edit.php">Modifier</a></li>
+                <?php else: ?>
+                    <li><a href="user_movies.php">Mes films</a></li>
                 <?php endif; ?>
-                <li><a href="logout.php">déconnection</a></li>
+                <li><a href="logout.php">Logout</a></li>
             <?php else: ?>
-                <li><a href="login.php">connection</a></li>
+                <li><a href="login.php">Login</a></li>
                 <li><a href="register.php">S'inscrire</a></li>
             <?php endif; ?>
         </ul>
