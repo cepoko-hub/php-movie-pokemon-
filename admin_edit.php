@@ -128,6 +128,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_movie'])) {
     }
 }
 
+if (isset($_FILES['movie_file']) && $_FILES['movie_file']['error'] === UPLOAD_ERR_OK) {
+    $movieTmpName = $_FILES['movie_file']['tmp_name'];
+    $movieName = basename($_FILES['movie_file']['name']);
+    $movieExt = strtolower(pathinfo($movieName, PATHINFO_EXTENSION));
+
+    if ($movieExt === 'mp4') {
+        $newMovieName = uniqid() . ".mp4";
+        $moviePath = "asset/movies/" . $newMovieName;
+
+        if (!file_exists("asset/movies/")) {
+            mkdir("asset/movies/", 0777, true);
+        }
+
+        $sql = "SELECT movie_file FROM Movies WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $movie_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $movie = $result->fetch_assoc();
+
+        $oldMoviePath = isset($movie['movie_file']) ? $movie['movie_file'] : null;
+
+        if (move_uploaded_file($movieTmpName, $moviePath)) {
+            if ($oldMoviePath && $oldMoviePath !== "asset/movies/default_video.mp4" && file_exists($oldMoviePath)) {
+                unlink($oldMoviePath);
+            }
+
+            $sql = "UPDATE Movies SET movie_file = ? WHERE id = ?";
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("si", $moviePath, $movie_id);
+            $stmt->execute();
+        } else {
+            $error = "Impossible de déplacer le fichier vidéo téléchargé.";
+        }
+    } else {
+        $error = "Le format de fichier n'est pas supporté.";
+    }
+}
+
 $sql = "SELECT * FROM Movies";
 $result = $conn->query($sql);
 
@@ -180,6 +219,7 @@ $conn->close();
                     <textarea name="desc_film" required><?php echo htmlspecialchars($row['desc_film']); ?></textarea>
                     <p class="creator">Créateur : <?php echo htmlspecialchars($row['creator']); ?></p>
                     <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp,.gif">
+                    <input type="file" name="movie_file" accept=".mp4">
                     <button type="submit" name="edit_movie">Modifier</button>
                     <button type="submit" name="delete_movie" class="delete-button">Supprimer</button>
                 </form>

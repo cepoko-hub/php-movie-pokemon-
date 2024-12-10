@@ -77,13 +77,15 @@ function getImagePath($imagePath) {
                     <button class='more-info-btn' data-id='{$row['id']}'>En savoir +</button>
                     </div>";
 
-                echo "<div class='popup' id='popup-{$row['id']}'>
-                        <div class='popup-content'>
-                            <h2>{$row['title']}</h2>
-                            <p>{$row['desc_film']}</p>
-                            <button class='close-popup' data-id='{$row['id']}'>Fermer</button>
+                    echo '<div class="popup" id="popup-' . $row['id'] . '">
+                        <div class="popup-content">
+                            <h2>' . htmlspecialchars($row['title']) . '</h2>
+                            <p>' . htmlspecialchars($row['desc_film']) . '</p>
+                            <a href="watch.php?movie_id=' . $row['id'] . '" target="_blank" class="watch-button">Regarder le film</a>
+                            <button class="close-popup" data-id="' . $row['id'] . '">Fermer</button>
                         </div>
-                    </div>";
+                    </div>';
+            
             }
         } else {
             echo "<p>No movies found!</p>";
